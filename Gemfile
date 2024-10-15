@@ -15,13 +15,12 @@ gem "dotenv-rails"
 gem "faraday"
 gem "json"
 
-
-
 group :development, :test do
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
   gem "brakeman", require: false
   gem "rubocop-rails-omakase", require: false
   gem "byebug", platforms: %i[ mri mingw x64_mingw ]
+  gem "rubocop", require: false
 end
 
 group :development do
