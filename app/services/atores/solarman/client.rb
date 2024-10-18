@@ -1,7 +1,7 @@
 module Atores
   module Solarman
     class Client
-      BASE_URL = "https://globalapi.solarmanpv.com/".freeze
+      BASE_URL = "https://globalapi.solarmanpv.com".freeze
 
       def initialize(url = BASE_URL)
         @conn = Faraday.new(url: url) do |conn|
@@ -9,14 +9,17 @@ module Atores
         end
       end
 
-      def post(path, body)
-        @conn.post(path, body)
+      def post(path, body, query_params = {})
+        @conn.post(path) do |req|
+          req.body = body
+          req.params = query_params unless query_params.empty?
+        end
       end
 
       def configure_connection(conn)
         conn.request :json
-        conn.response :json, content_type: /\bjson$/
-        conn.adapter Faraday.default_adapter
+        # conn.response :json, content_type: /\bjson$/
+        # conn.adapter Faraday.default_adapter
       end
     end
   end
