@@ -2,26 +2,10 @@ require "ostruct"
 module Atores
  module Solarman
   class Request
-   include Atores::Solarman::Helpers
-
-
-   def initialize(client = nil)
-    @client = client || Atores::Solarman::Client.new
-   end
-
-   def token
-    path = "/account/v1.0/token"
-    params = {
-      "appId": ENV["SOLARMAN_APP_ID"],
-      "language": "en"
-    }
-    body = {
-      "appSecret": ENV["SOLARMAN_APP_SECRET"],
-      "password": password_encrypted,
-      "email": ENV["SOLARMAN_EMAIL"]
-    }
-    response = @client.post(path, body, params)
-    OpenStruct.new(JSON.parse(response.body))
+   def initialize
+    @client = Atores::Solarman::Client.new
+    token = Atores::Solarman::Token.new
+    @token = token.saved_token
    end
 
    def plant_list
@@ -31,10 +15,32 @@ module Atores
       "appId": ENV["SOLARMAN_APP_ID"],
       "language": "en"
     }
-    body = {
-      "token": token
+    headers = {
+      "Authorization" => "Bearer #{@token}"
     }
-    @client.post(path, body, params)
+    body = {}
+
+    @client.post(path, body, params, headers)
+   end
+
+   def historical_data(plant_id, start_time, end_time = Date.today.to_s)
+    path = "/station/v1.0/history"
+    params = {
+      "appId": ENV["SOLARMAN_APP_ID"],
+      "language": "en"
+    }
+    headers = {
+      "Authorization" => "Bearer #{@token}"
+    }
+    body = {
+      "stationId": plant_id,
+      "startTime": start_time,
+      "endTime": end_time,
+      "timeType": 2
+    }
+
+    response = @client.post(path, body, params, headers)
+    OpenStruct.new(JSON.parse(response.body))
    end
   end
  end

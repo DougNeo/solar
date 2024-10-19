@@ -9,10 +9,11 @@ module Atores
         end
       end
 
-      def post(path, body, query_params = {})
+      def post(path, body, query_params = {}, headers = {})
         @conn.post(path) do |req|
           req.body = body
           req.params = query_params unless query_params.empty?
+          req.headers = headers
         end
       end
     end

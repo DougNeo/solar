@@ -1,11 +1,18 @@
 module Atores
   module Solarman
     class Token
-      def initialize(client = nil)
-        @client = client || Atores::Solarman::Client.new
+      include Atores::Solarman::Helpers
+      def initialize
+        @client = Atores::Solarman::Client.new
       end
 
-      def get
+      def saved_token
+        Rails.cache.fetch("solarman_token", expires_in: 60.days) do
+          token
+        end
+      end
+
+      def token
         path = "/account/v1.0/token"
         params = {
           "appId": ENV["SOLARMAN_APP_ID"],
@@ -16,11 +23,11 @@ module Atores
           "password": password_encrypted,
           "email": ENV["SOLARMAN_EMAIL"]
         }
-        @client.post(path, body, params)
-      end
-
-      def password_encrypted
-        Digest::SHA256.hexdigest(ENV["SOLARMAN_PASSWORD"])
+        response = @client.post(path, body, params)
+        if response.status != 200
+          raise "Error: #{response.body}"
+        end
+        JSON.parse(response.body)["access_token"]
       end
     end
   end
