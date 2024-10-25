@@ -9,7 +9,6 @@ module Atores
    end
 
    def plant_list
-    debugger
     path = "/station/v1.0/list"
     params = {
       "appId": ENV["SOLARMAN_APP_ID"],
@@ -20,7 +19,8 @@ module Atores
     }
     body = {}
 
-    @client.post(path, body, params, headers)
+    response = @client.post(path, body, params, headers)
+    JSON.parse(response.body, object_class: OpenStruct)
    end
 
    def historical_data(plant_id, start_time, end_time = Date.today.to_s)
@@ -40,7 +40,7 @@ module Atores
     }
 
     response = @client.post(path, body, params, headers)
-    OpenStruct.new(JSON.parse(response.body))
+    JSON.parse(response.body, object_class: OpenStruct)
    end
   end
  end
