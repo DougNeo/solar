@@ -1,0 +1,2 @@
+class InjectedEnergy < ApplicationRecord
+end
