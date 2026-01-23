@@ -28,3 +28,4 @@
 !/app/assets/builds/.keep
 
 /.byebug_history
+/config/credentials/development.key
