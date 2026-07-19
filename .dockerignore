@@ -27,6 +27,7 @@
 /app/assets/builds/*
 !/app/assets/builds/.keep
 /public/assets
+/SolarmanOpenAPI*.pdf*
 
 # Ignore CI service files.
 /.github

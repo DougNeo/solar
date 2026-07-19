@@ -1,33 +1,39 @@
 module Atores
   module Solarman
     class Token
-      include Atores::Solarman::Helpers
-      def initialize
-        @client = Atores::Solarman::Client.new
+      include Helpers
+
+      CACHE_KEY = "solarman/access_token"
+
+      def initialize(client: Client.new)
+        @client = client
       end
 
-      def saved_token
-        Rails.cache.fetch("solarman_token", expires_in: 60.days) do
-          token
-        end
+      def value(force: false)
+        Rails.cache.delete(CACHE_KEY) if force
+        Rails.cache.read(CACHE_KEY) || fetch_token
       end
 
-      def token
-        path = "/account/v1.0/token"
-        params = {
-          "appId": ENV["SOLARMAN_APP_ID"],
-          "language": "en"
-        }
-        body = {
-          "appSecret": ENV["SOLARMAN_APP_SECRET"],
-          "password": password_encrypted,
-          "email": ENV["SOLARMAN_EMAIL"]
-        }
-        response = @client.post(path, body, params)
-        if response.status != 200
-          raise "Error: #{response.body}"
-        end
-        JSON.parse(response.body)["access_token"]
+      def invalidate!
+        Rails.cache.delete(CACHE_KEY)
+      end
+
+      private
+
+      def fetch_token
+        payload = @client.post("/account/v1.0/token", params: default_params, body: {
+          appSecret: credentials.fetch(:app_secret), email: credentials.fetch(:email), password: password_encrypted
+        })
+        token = payload.fetch("access_token")
+        lifetime = [ payload.fetch("expires_in", 3600).to_i - 60, 60 ].max
+        Rails.cache.write(CACHE_KEY, token, expires_in: lifetime)
+        token
+      rescue KeyError
+        raise AuthenticationError, "Resposta de autenticação da Solarman incompleta"
+      end
+
+      def default_params
+        { appId: credentials.fetch(:app_id), language: "pt" }
       end
     end
   end

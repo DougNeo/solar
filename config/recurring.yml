@@ -1,0 +1,16 @@
+production:
+  sync_plants:
+    class: SyncPlantsJob
+    schedule: every day at 02:00 America/Sao_Paulo
+  sync_history:
+    class: SyncHistoryJob
+    schedule: every day at 01:00 America/Sao_Paulo
+  sync_alerts:
+    class: SyncAlertsJob
+    schedule: every 15 minutes
+  backup_database:
+    class: BackupDatabaseJob
+    schedule: every day at 03:00 America/Sao_Paulo
+  clear_finished_jobs:
+    command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
+    schedule: every hour at minute 12

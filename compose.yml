@@ -1,0 +1,24 @@
+services:
+  solar:
+    build: .
+    image: solar-dashboard:latest
+    restart: unless-stopped
+    environment:
+      RAILS_ENV: production
+      SOLID_QUEUE_IN_PUMA: "1"
+      RAILS_LOG_TO_STDOUT: "1"
+    ports:
+      - "3000:3000"
+    volumes:
+      - solar_storage:/rails/storage
+      - ./backups:/rails/backups
+      - ./config/master.key:/rails/config/master.key:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:3000/up"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+volumes:
+  solar_storage:

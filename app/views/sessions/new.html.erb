@@ -1,0 +1,14 @@
+<% content_for :title, "Entrar · Solar" %>
+<section class="login-card">
+  <div class="brand-mark">☀</div>
+  <p class="eyebrow">USINA SOLAR</p>
+  <h1>Acompanhe sua energia</h1>
+  <p class="muted">Acesso privado à geração e aos equipamentos.</p>
+  <%= form_with url: login_path, class: "login-form" do |form| %>
+    <%= form.label :email, "E-mail" %>
+    <%= form.email_field :email, required: true, autofocus: true, autocomplete: "email" %>
+    <%= form.label :password, "Senha" %>
+    <%= form.password_field :password, required: true, autocomplete: "current-password" %>
+    <%= form.submit "Entrar" %>
+  <% end %>
+</section>

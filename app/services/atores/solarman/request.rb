@@ -1,80 +1,77 @@
-require "ostruct"
 module Atores
   module Solarman
     class Request
-      def initialize
-        @client = Atores::Solarman::Client.new
-        token = Atores::Solarman::Token.new
-        @token = token.saved_token
+      include Helpers
+
+      Station = Data.define(:id, :name, :latitude, :longitude, :address, :installed_capacity, :start_operating_time, :raw)
+      Reading = Data.define(:date, :generation_kwh, :raw)
+
+      def initialize(client: Client.new, token_provider: nil)
+        @client = client
+        @token_provider = token_provider || Token.new(client:)
       end
 
-      def plant_list
-        path = "/station/v1.0/list"
-        params = {
-          "appId": ENV["SOLARMAN_APP_ID"],
-          "language": "en"
-        }
-        headers = {
-          "Authorization" => "Bearer #{@token}"
-        }
-        body = {}
-
-        response = @client.post(path, body, params, headers)
-        parsed = JSON.parse(response.body, object_class: OpenStruct)
-
-        parsed.stationList.each do |plant|
-          Plant.find_or_create_by(plant_id: plant.id) do |p|
-            p.name = plant.name
-            p.latitude = plant.locationLat
-            p.longitude = plant.locationLng
-            p.address = plant.locationAddress
-            p.installed_capacity = plant.installedCapacity
-            p.start_operating_time = plant.startOperatingTime
-          end
+      def stations
+        paginate("/station/v1.0/list", {}, "stationList").map do |item|
+          Station.new(id: item["id"].to_s, name: item["name"], latitude: item["locationLat"], longitude: item["locationLng"],
+            address: item["locationAddress"], installed_capacity: item["installedCapacity"],
+            start_operating_time: parse_time(item["startOperatingTime"]), raw: item)
         end
       end
 
-      def historical_data(plant_id, start_time, end_time = Date.today.to_s)
-        path = "/station/v1.0/history"
-        params = {
-          "appId": ENV["SOLARMAN_APP_ID"],
-          "language": "en"
-        }
-        headers = {
-          "Authorization" => "Bearer #{@token}"
-        }
-        body = {
-          "stationId": plant_id,
-          "startTime": start_time,
-          "endTime": end_time,
-          "timeType": 2
-        }
+      def station_base(station_id) = authenticated_post("/station/v1.0/base", stationId: station_id)
+      def real_time(station_id) = authenticated_post("/station/v1.0/realTime", stationId: station_id)
+      def devices(station_id) = paginate("/station/v1.0/device", { stationId: station_id }, "deviceList")
+      def alerts(station_id) = paginate("/station/v1.0/alert", { stationId: station_id }, "alertList")
+      def current_data(device_sn) = authenticated_post("/device/v1.0/currentData", deviceSn: device_sn)
+      def alert_detail(device_sn:, alert_id:) = authenticated_post("/device/v1.0/alertDetail", deviceSn: device_sn, alertId: alert_id)
+
+      def history(station_id, start_date, end_date)
+        raise ArgumentError, "A janela histórica não pode ultrapassar 30 dias" if (end_date.to_date - start_date.to_date).to_i > 29
+
+        payload = authenticated_post("/station/v1.0/history", stationId: station_id, startTime: start_date.to_date.iso8601,
+          endTime: end_date.to_date.iso8601, timeType: 2)
+        Array(payload["stationDataItems"]).map do |item|
+          date = Date.new(item["year"].to_i, item["month"].to_i, item["day"].to_i)
+          Reading.new(date:, generation_kwh: item["generationValue"], raw: item)
+        end
+      end
+
+      private
+
+      def paginate(path, body, key)
+        page = 1
+        results = []
+        loop do
+          payload = authenticated_post(path, **body, page: page, size: 100)
+          items = Array(payload[key])
+          results.concat(items)
+          total = payload["total"].to_i
+          break if items.empty? || items.length < 100 || (total.positive? && results.length >= total)
+          page += 1
+        end
+        results
+      end
+
+      def authenticated_post(path, **body)
+        attempts = 0
         begin
-        response = @client.post(path, body, params, headers)
-        JSON.parse(response.body, object_class: OpenStruct)
-        rescue => e
-          puts "O retorno da request foi #{response.body}"
-          puts "O erro foi #{e}"
+          @client.post(path, body:, params: default_params, token: @token_provider.value(force: attempts.positive?))
+        rescue AuthenticationError
+          attempts += 1
+          retry if attempts == 1
+          raise
         end
       end
 
-      def get_all_data(plant_id, start_time = "2024-04-19", end_time = Date.today.to_s)
-        dados = []
-        inicio = Date.parse(start_time)
-        fim = Date.parse(end_time)
+      def default_params
+        { appId: credentials.fetch(:app_id), language: "pt" }
+      end
 
-        while inicio < fim
-          puts "Buscando dados de #{inicio} a #{inicio + 30.days}"
-          parsed = historical_data(plant_id, inicio.to_s, (inicio + 30.days).to_s)
-          parsed.stationDataItems.each do |item|
-            dados << dia = {
-              date: Date.new(item.year, item.month, item.day),
-              generation_value: item.generationValue
-            }
-          end
-          inicio += 30.days
-        end
-        dados
+      def parse_time(value)
+        Time.zone.parse(value.to_s) if value.present?
+      rescue ArgumentError
+        nil
       end
     end
   end

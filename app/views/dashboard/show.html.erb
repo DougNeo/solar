@@ -1,0 +1,75 @@
+<% content_for :title, "Dashboard · Solar" %>
+<header class="topbar">
+  <div><span class="sun">☀</span><strong>Solar</strong></div>
+  <div class="top-actions">
+    <% if @plants.any? %>
+      <%= form_with url: root_path, method: :get do |form| %>
+        <%= form.select :plant_id, @plants.map { |plant| [plant.name, plant.id] }, { selected: @plant&.id }, onchange: "this.form.requestSubmit()" %>
+      <% end %>
+    <% end %>
+    <%= button_to "Sair", logout_path, method: :delete, class: "link-button" %>
+  </div>
+</header>
+
+<% if @plant.nil? %>
+  <section class="empty-state"><span>☀</span><h1>Nenhuma usina sincronizada</h1><p>Execute <code>bin/rails solar:sync</code> depois de configurar as credenciais.</p></section>
+<% else %>
+  <div class="dashboard-shell">
+    <% if @api_unavailable %>
+      <aside class="stale-banner">A Solarman está indisponível. Exibindo os últimos dados salvos em <%= l(@plant.last_synced_at, format: :short) if @plant.last_synced_at %>.</aside>
+    <% end %>
+
+    <section class="hero-card">
+      <div>
+        <p class="eyebrow">POTÊNCIA AGORA</p>
+        <div class="power"><%= number_with_precision(@plant.current_power_kw || 0, precision: 2) %> <small>kW</small></div>
+        <% capacity = @plant.installed_capacity.to_f %>
+        <% percentage = capacity.positive? ? ((@plant.current_power_kw.to_f / capacity) * 100).clamp(0, 100) : 0 %>
+        <div class="capacity"><span style="width: <%= percentage %>%"></span></div>
+        <p class="muted"><%= number_to_percentage(percentage, precision: 0) %> de <%= capacity %> kWp</p>
+      </div>
+      <div class="plant-state">
+        <span class="status <%= status_label(@plant.status).downcase %>"><i></i><%= status_label(@plant.status) %></span>
+        <p><%= @plant.name %></p><small>Atualizado <%= time_ago_in_words(@plant.last_synced_at) + " atrás" if @plant.last_synced_at %></small>
+      </div>
+    </section>
+
+    <section class="metric-grid">
+      <article><p>Hoje</p><strong><%= number_with_precision(@plant.daily_energy_kwh || 0, precision: 1) %></strong><span>kWh</span></article>
+      <article><p>Este mês</p><strong><%= number_with_precision(@month_energy, precision: 1) %></strong><span>kWh</span></article>
+      <article><p>Acumulado</p><strong><%= number_with_precision(@total_energy, precision: 0, delimiter: ".") %></strong><span>kWh</span></article>
+      <article><p>Produtividade hoje</p><strong><%= capacity.positive? ? number_with_precision(@plant.daily_energy_kwh.to_f / capacity, precision: 2) : "—" %></strong><span>kWh/kWp · h eq.</span></article>
+    </section>
+
+    <section class="panel chart-panel">
+      <div class="panel-heading"><div><p class="eyebrow">GERAÇÃO</p><h2>Histórico de energia</h2></div>
+        <nav class="periods">
+          <%= link_to "7 dias", root_path(plant_id: @plant.id), class: params[:period].blank? ? "active" : nil %>
+          <%= link_to "30 dias", root_path(plant_id: @plant.id, period: "30d"), class: params[:period] == "30d" ? "active" : nil %>
+          <%= link_to "12 meses", root_path(plant_id: @plant.id, period: "12m"), class: params[:period] == "12m" ? "active" : nil %>
+        </nav>
+      </div>
+      <% if @chart_data.any? %>
+        <%= line_chart @chart_data, suffix: " kWh", colors: ["#f5a623"], height: "280px", points: false, library: { plugins: { legend: { display: false } } } %>
+      <% else %><div class="inline-empty">Ainda não há geração registrada neste período.</div><% end %>
+      <%= form_with url: root_path, method: :get, class: "date-range" do |form| %>
+        <%= form.hidden_field :plant_id, value: @plant.id %><%= form.hidden_field :period, value: "custom" %>
+        <%= form.date_field :start_date, value: params[:start_date] %><span>até</span><%= form.date_field :end_date, value: params[:end_date] %><%= form.submit "Aplicar" %>
+      <% end %>
+    </section>
+
+    <div class="two-column">
+      <section class="panel"><div class="panel-heading"><div><p class="eyebrow">EQUIPAMENTOS</p><h2>Inversores</h2></div><span><%= @devices.size %></span></div>
+        <% if @devices.empty? %><div class="inline-empty">Nenhum inversor encontrado.</div><% end %>
+        <% @devices.each do |device| %>
+          <article class="device-row"><div class="device-icon">⌁</div><div><strong><%= device.name.presence || "Inversor" %></strong><small><%= device.serial %></small></div><span class="status <%= device.online? ? 'online' : 'offline' %>"><i></i><%= device.online? ? "Online" : "Offline" %></span></article>
+          <% if device.telemetry.present? %><details><summary>Dados técnicos</summary><dl class="telemetry"><% device.telemetry.each do |key, value| %><div><dt><%= metric_label(key, value) %></dt><dd><%= metric_value(value) %></dd></div><% end %></dl></details><% end %>
+        <% end %>
+      </section>
+      <section class="panel"><div class="panel-heading"><div><p class="eyebrow">MONITORAMENTO</p><h2>Alertas</h2></div><span><%= @alerts.size %></span></div>
+        <% if @alerts.empty? %><div class="healthy">✓ Tudo funcionando normalmente</div><% end %>
+        <% @alerts.each do |alert| %><details class="alert-row"><summary><span class="severity <%= alert.severity.to_s.downcase %>"></span><div><strong><%= alert.title.presence || "Alerta Solarman" %></strong><small><%= alert.device&.name || alert.device&.serial %> · <%= l(alert.occurred_at, format: :short) if alert.occurred_at %></small></div></summary><p><%= alert.influence %></p><p><strong>Solução:</strong> <%= alert.solution %></p></details><% end %>
+      </section>
+    </div>
+  </div>
+<% end %>
