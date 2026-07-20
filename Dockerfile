@@ -10,7 +10,7 @@ RUN apt-get update -qq && apt-get install --no-install-recommends -y build-essen
 COPY Gemfile Gemfile.lock ./
 RUN bundle install && rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && bundle exec bootsnap precompile --gemfile
 COPY . .
-RUN test ! -e config/master.key && bundle exec bootsnap precompile app/ lib/ && SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
+RUN test ! -e config/master.key && test ! -e config/credentials/production.key && bundle exec bootsnap precompile app/ lib/ && SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
 
 FROM base
 COPY --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"

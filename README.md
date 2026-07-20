@@ -45,17 +45,19 @@ Os pontos principais do código são:
 
 ## Segredos e Rails Credentials
 
-Nunca envie `config/master.key`, uma chave específica de ambiente ou valores descriptografados ao Git. O repositório guarda apenas `config/credentials.yml.enc`.
+Nunca envie chaves de Credentials nem valores descriptografados ao Git. O repositório guarda o arquivo criptografado `config/credentials/production.yml.enc`; a chave correspondente fica somente no host.
 
-Obtenha a `master.key` que corresponde ao arquivo criptografado e salve-a como `config/master.key` no host. Depois edite as Credentials:
+Crie ou edite as Credentials de produção:
 
 ```sh
-EDITOR=nano bin/rails credentials:edit
+EDITOR=nano bin/rails credentials:edit --environment production
 ```
 
 Conteúdo obrigatório:
 
 ```yaml
+secret_key_base: "cole-a-saida-de-bin-rails-secret"
+
 solarman:
   app_id: "..."
   app_secret: "..."
@@ -67,20 +69,26 @@ admin:
   email: "admin@exemplo.com"
 ```
 
-Use apenas o hostname em `allowed_host`, sem `https://` e sem caminho. A senha da Solarman é transformada em SHA-256 durante a autenticação; não grave o hash nas Credentials.
+Gere `secret_key_base` com `bin/rails secret`. Use apenas o hostname em `allowed_host`, sem `https://` e sem caminho. A senha da Solarman é transformada em SHA-256 durante a autenticação; não grave o hash nas Credentials.
 
-A inicialização falha com uma lista clara se algum valor estiver ausente. Perder a chave torna as Credentials indecifráveis; vazar a chave junto com `credentials.yml.enc` expõe todos os segredos. Mantenha uma cópia da chave fora do servidor.
+A inicialização falha com uma lista clara se algum valor estiver ausente. O comando cria `config/credentials/production.yml.enc` e `config/credentials/production.key`; versione apenas o arquivo `.yml.enc`. Perder a chave torna as Credentials indecifráveis; mantenha uma cópia segura dela fora do servidor.
+
+Depois de preencher as Credentials, inclua o arquivo criptografado no próximo commit:
+
+```sh
+git add config/credentials/production.yml.enc
+```
 
 ## Primeira instalação no CasaOS
 
-Pré-requisitos: Git, Docker com Compose, hostname do Cloudflare Tunnel apontando para a porta publicada e uma cópia válida da `master.key`.
+Pré-requisitos: Git, Docker com Compose, hostname do Cloudflare Tunnel apontando para a porta publicada e uma cópia válida de `config/credentials/production.key`.
 
 ```sh
 git clone git@github.com:DougNeo/solar.git
 cd solar
 install -d -m 755 backups
-# Copie a chave por um canal seguro para config/master.key
-chmod 600 config/master.key
+# Copie a chave por um canal seguro para config/credentials/production.key
+chmod 600 config/credentials/production.key
 docker compose up --build -d
 ```
 
@@ -88,7 +96,7 @@ O Compose monta:
 
 - `solar_storage` em `/rails/storage`, preservando bancos entre recriações;
 - `./backups` em `/rails/backups`;
-- `./config/master.key` em `/rails/config/master.key`, somente leitura.
+- `./config/credentials/production.key` em `/rails/config/credentials/production.key`, somente leitura.
 
 O container roda como UID/GID 1000. Se o backup apresentar erro de permissão, ajuste no host:
 
@@ -103,7 +111,7 @@ docker compose exec solar bin/rails admin:password
 docker compose exec solar bin/rails solar:sync
 ```
 
-A importação histórica pode demorar: ela percorre desde o início de operação até ontem em janelas inclusivas e não sobrepostas de até 30 dias. Repetir a tarefa é seguro e não duplica registros.
+Em desenvolvimento, a importação cobre somente os últimos 30 dias. Em produção, a primeira execução percorre desde o início de operação até ontem; as seguintes continuam a partir do último dia salvo. As janelas têm no máximo 30 dias e repetir a tarefa não duplica registros.
 
 No Cloudflare, use HTTPS externamente. A aplicação força SSL, permite o hostname configurado e exclui apenas `/up` do redirecionamento para que o healthcheck interno funcione.
 
@@ -143,7 +151,7 @@ curl -i http://localhost:3000/up
 
 Problemas comuns:
 
-- `Missing encryption key`: `config/master.key` está ausente, é um diretório ou não corresponde a `credentials.yml.enc`.
+- `Missing encryption key`: `config/credentials/production.key` está ausente, é um diretório ou não corresponde a `config/credentials/production.yml.enc`.
 - `Credenciais obrigatórias ausentes`: edite as Credentials e preencha todos os campos documentados.
 - `Blocked host`: confira se `application.allowed_host` contém exatamente o hostname usado no navegador.
 - Dashboard desatualizada: verifique os logs, o acesso de saída a `globalapi.solarmanpv.com` e jobs com falha.

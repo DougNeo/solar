@@ -22,7 +22,17 @@ module Atores
       def station_base(station_id) = authenticated_post("/station/v1.0/base", stationId: station_id)
       def real_time(station_id) = authenticated_post("/station/v1.0/realTime", stationId: station_id)
       def devices(station_id) = paginate("/station/v1.0/device", { stationId: station_id }, "deviceList")
-      def alerts(station_id) = paginate("/station/v1.0/alert", { stationId: station_id }, "alertList")
+      def alerts(station_id, start_date: 30.days.ago.to_date, end_date: Date.current)
+        paginate(
+          "/station/v1.0/alert",
+          {
+            stationId: station_id,
+            startTime: start_date.to_date.iso8601,
+            endTime: end_date.to_date.iso8601
+          },
+          "stationAlertItems"
+        )
+      end
       def current_data(device_sn) = authenticated_post("/device/v1.0/currentData", deviceSn: device_sn)
       def alert_detail(device_sn:, alert_id:) = authenticated_post("/device/v1.0/alertDetail", deviceSn: device_sn, alertId: alert_id)
 
@@ -69,6 +79,13 @@ module Atores
       end
 
       def parse_time(value)
+        raw_value = value.to_s
+        if raw_value.match?(/\A\d{10,13}\z/)
+          seconds = raw_value.to_i
+          seconds /= 1000 if raw_value.length == 13
+          return Time.at(seconds).in_time_zone
+        end
+
         Time.zone.parse(value.to_s) if value.present?
       rescue ArgumentError
         nil

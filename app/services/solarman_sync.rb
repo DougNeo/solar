@@ -23,8 +23,8 @@ class SolarmanSync
     end
   end
 
-  def history!(plant, through: Date.yesterday)
-    cursor = ([ plant.start_operating_time&.to_date, plant.energy_readings.maximum(:recorded_on)&.next ].compact.max || through)
+  def history!(plant, through: Date.yesterday, start_date: plant.start_operating_time&.to_date || through)
+    cursor = start_date.to_date
     while cursor <= through
       window_end = [ cursor + 29.days, through ].min
       @api.history(plant.plant_id, cursor, window_end).each do |reading|
@@ -77,6 +77,13 @@ class SolarmanSync
   end
 
   def parse_time(value)
+    raw_value = value.to_s
+    if raw_value.match?(/\A\d{10,13}\z/)
+      seconds = raw_value.to_i
+      seconds /= 1000 if raw_value.length == 13
+      return Time.at(seconds).in_time_zone
+    end
+
     Time.zone.parse(value.to_s) if value.present?
   rescue ArgumentError
     nil

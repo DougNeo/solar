@@ -30,7 +30,11 @@ module Atores
         payload = JSON.parse(response.body.presence || "{}")
         raise AuthenticationError, "Token Solarman expirado" if response.status == 401 || payload["code"].to_s.in?(%w[2101002 2101004])
         raise ApiError, "Solarman HTTP #{response.status}" unless response.success?
-        raise ApiError, payload["msg"].presence || "Erro retornado pela Solarman" if payload["success"] == false || payload["code"].to_i.positive?
+
+        # A API usa 10000 como código de sucesso; não trate todo código positivo como falha.
+        code = payload["code"].to_s
+        failed_code = code.present? && !%w[0 10000].include?(code)
+        raise ApiError, payload["msg"].presence || "Erro retornado pela Solarman" if payload["success"] == false || failed_code
 
         payload
       rescue JSON::ParserError

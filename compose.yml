@@ -12,7 +12,7 @@ services:
     volumes:
       - solar_storage:/rails/storage
       - ./backups:/rails/backups
-      - ./config/master.key:/rails/config/master.key:ro
+      - ./config/credentials/production.key:/rails/config/credentials/production.key:ro
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:3000/up"]
       interval: 30s
